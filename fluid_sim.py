@@ -2,26 +2,44 @@ import copy
 
 import numpy as np
 
-N = 50
-h = 0.1
-mask = Mask([0.0] * (N * N))
+if __name__ != "__main__":
+    N = 50
+    N_t = 10
+    h = 0.1
+    mask = Mask([0.0] * (N * N))
+
+    mu = 1.0
+    zeta = 1.0
+    kappa = zeta + (mu / 3)
+    p = 0  # TODO
+
+    u0 = mask.apply_mask(np.zeros(N * N))
+    v0 = mask.apply_mask(np.zeros(N * N))
+    rho0 = mask.apply_mask(copy.deepcopy(p))  # TODO
+
+    x0 = TripleVector(u0, v0, rho0)
+
+    solution = solver_example(N, h, N_t, mu, kappa, x0, p, mask)
 
 
-def apply_mask(x):
-    return np.ma.masked_array(x, mask)
+def RK4(h, x, f):
+    k1 = h * f(x)
+    k2 = h * f(x + 0.5 * k1)
+    k3 = h * f(x + 0.5 * k2)
+    k4 = h * f(x + k3)
+    return x + (k1 + 2*k2 + 2*k3 + k4) / 6
 
 
-mu = 1.0
-zeta = 1.0
-kappa = zeta + (mu / 3)
-p = 0  # TODO
-
-u_0 = mask.apply_mask(np.zeros(N * N))
-v_0 = mask.apply_mask(np.zeros(N * N))
-rho_0 = mask.apply_mask(copy.deepcopy(p))  # TODO
-
-
-# I think the following structure makes sense:
+def solver_example(N, h, N_t, mu, kappa, x0, p, mask):
+    f = TimeDerivativeTriple(
+        TimeDerivativeU(N, mu, kappa, p, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"),
+        TimeDerivativeV(N, mu, kappa, p, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"),
+        TimeDerivativeRho(N, mu, kappa, p, mask, edge_bc="NEUMANN", interior_bc="DIRICHLET"),
+    )
+    states = [x0]
+    for n_t in range(N_t):
+        states.append(RK4(h, states[-1], f))
+    return states
 
 
 class IllegalMultiplicationException(Exception):
