@@ -120,16 +120,32 @@ class Mask:
     def _apply_mask_on_matrix(self, A):
         return A[self._mask, :][:, self._mask]
 
-    def _apply_mask_on_sparse_matrix(self, elements):
+    def _apply_mask_on_sparse_matrix_inefficiently(self, elements):
         return [
             (i, j, value)
             for i, j, value in elements
             if i in self._mask and j in self._mask
         ]
-        # This is very computationally expensive.
-        # How about instead sorting the elements, then going through the mask
-        # and checking excluded ones?
-        # What if the mask
+        # This is very computationally expensive, O(N^4)
+        # Better, O(N^2 log(N)):
+
+    def _apply_mask_on_sparse_matrix(self, elements):
+        elements = self._filter_axis(elements, axis=0)
+        elements = self._filter_axis(elements, axis=1)
+        return elements
+
+    def _filter_axis(self, elements, axis=0):
+        elements.sort(key=lambda el: el[axis])
+        anti_mask = copy.deepcopy(self._anti_mask)
+        i = 0
+        while i < len(elements) and len(anti_mask) > 0:
+            if elements[i][axis] == anti_mask[0]:
+                del elements[i]
+            elif elements[i][axis] > anti_mask[0]:
+                del anti_mask[0]
+            elif elements[i][axis] < anti_mask[0]:
+                i += 1
+        return elements
 
 
 def test_require_that_triple_vector_class_works_as_expected():
@@ -172,7 +188,8 @@ class SpatialDerivative:
     """
     The choice in naming for the derivative matrices is such that, when naming
     instances as e.g. `D_z`, the corresponding derivatives become `D_z.xy`.
-    This gets the programmatic notation very close to mathematical.
+    This gets the programmatic notation very close to mathematical (or at least
+    my own).
     """
 
     def __init__(self, N, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"):
