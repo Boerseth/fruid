@@ -21,7 +21,10 @@ class TripleVector:
         self.u = u
         self.v = v
         self.rho = rho
-    
+
+    def split(self,):
+        return (self.u, self.v, self.rho)
+
     def __neg__(self,):
         return TripleVector(-self.u, -self.v, -self.rho)
 
@@ -35,29 +38,27 @@ class TripleVector:
         if not type(other) in [int, float]:
             raise IllegalMultiplicationException()
         return TripleVector(self.u * other, self.v * other, self.rho * other,)
-    
+
     def __truediv__(self, other):
         if not type(other) in [int, float]:
             raise IllegalDivisionException()
         return TripleVector(
-            self.u.__truediv__(other), 
-            self.v.__truediv__(other), 
+            self.u.__truediv__(other),
+            self.v.__truediv__(other),
             self.rho.__truediv__(other),
         )
 
     def __rmul__(self, other):
         return self * other
-    
+
     def __str__(self,):
         return "<u: {}, v: {}, rho: {}>".format(self.u, self.v, self.rho)
-    
+
     def __repr__(self,):
         return "<TripleVector({}, {}, {})>".format(
-            repr(self.u), 
-            repr(self.v), 
-            repr(self.rho)
+            repr(self.u), repr(self.v), repr(self.rho)
         )
-        
+
 
 def is_sorted(l, compare):
     for l_1, l_2 in zip(l[:-1], l[1:]):
@@ -69,8 +70,10 @@ def is_sorted(l, compare):
 class InvalidMaskInputException(Exception):
     pass
 
+
 class NotMaskableTensorDegreeException(Exception):
     pass
+
 
 class ObjectNotMaskableException(Exception):
     pass
@@ -82,23 +85,30 @@ class Mask:
             raise InvalidMaskInputException()
         self._M = M
         self._mask = mask
-        self._anti_mask = list([m for m in range(M)])
+        self._anti_mask = self._make_anti_mask()
+
+    def _make_anti_mask(self,):
+        anti_mask = list([m for m in range(self._M)])
         for m in self._mask[::-1]:
-            del self._anti_mask[m]
+            del anti_mask[m]
+        return anti_mask
 
     def apply_mask(self, x):
-        if type(x) == list:
+        if type(x) == np.ndarray:
+            self._apply_mask_on_numpy_array(x)
+        elif type(x) == list:
             return self._apply_mask_on_sparse_matrix(x)
-        elif type(x) == np.ndarray:
-            dimensions = len(x.shape)
-            if dimensions == 1:
-                return self._apply_mask_on_vector(x)
-            elif dimensions == 2:
-                return self._apply_mask_on_matrix(x)
-            else:
-                raise NotMaskableTensorDegreeException()
         else:
             raise ObjectNotMaskableException()
+
+    def _apply_mask_on_numpy_array(self, np_array):
+        degree = len(np_array.shape)
+        if degree == 1:
+            return self._apply_mask_on_vector(np_array)
+        elif degree == 2:
+            return self._apply_mask_on_matrix(np_array)
+        else:
+            raise NotMaskableTensorDegreeException()
 
     def _apply_mask_on_vector(self, v):
         return v[self._mask]
@@ -107,8 +117,6 @@ class Mask:
         return A[self._mask, :][:, self._mask]
 
     def _apply_mask_on_sparse_matrix(self, elements):
-        for m in self._anti_mask:
-            print("")
         return [
             (i, j, value)
             for i, j, value in elements
@@ -116,42 +124,8 @@ class Mask:
         ]
         # This is very computationally expensive.
         # How about instead sorting the elements, then going through the mask
-        # and checking excluded ones.
+        # and checking excluded ones?
         # What if the mask
-
-
-class SpatialDerivative(object):
-    # TODO: Write out derivative expressions
-    def __init__(
-        self, N, mu, kappa, p, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"
-    ):
-        self.N = N
-        self.mu = mu
-        self.kappa = kappa
-        self.p = p
-        self.mask = mask
-        self.edge_bc = edge_bc
-        self.interior_bc = interior_bc
-        self.x = self.make_D_x
-        self.y = self.make_D_y
-        self.xy = self.make_D_xy
-        self.xx = self.make_D_xx
-        self.yy = self.make_D_yy
-
-    def make_D_x(self,):
-        pass
-
-    def make_D_y(self,):
-        pass
-
-    def make_D_xy(self,):
-        pass
-
-    def make_D_xx(self,):
-        pass
-
-    def make_D_yy(self,):
-        pass
 
 
 def test_require_that_triple_vector_class_works_as_expected():
@@ -172,25 +146,71 @@ def test_require_that_triple_vector_class_works_as_expected():
 
 def test_require_that_anti_mask_works_as_expected():
     with pytest.raises(InvalidMaskInputException):
-        mask_object = Mask(1, [1,0])
-    mask_list = [2,5,7,8]
+        mask_object = Mask(1, [1, 0])
+    mask_list = [2, 5, 7, 8]
     M = 10
     mask_object = Mask(M, mask_list)
-    assert mask_object._anti_mask == [0,1,3,4,6,9]
+    assert mask_object._anti_mask == [0, 1, 3, 4, 6, 9]
     with pytest.raises(ObjectNotMaskableException):
         mask_object.apply_mask("not valid maskable")
     with pytest.raises(NotMaskableTensorDegreeException):
         mask_object.apply_mask(np.array([[[1.0]]]))
+    # TODO: Check for sparse matrix
 
 
 test_require_that_triple_vector_class_works_as_expected()
 test_require_that_anti_mask_works_as_expected()
 
 
-class TimeDerivativeU(SpatialDerivative):
+class SpatialDerivative:
+    """
+    The choice in naming for the derivative matrices is such that, when naming
+    instances as e.g. `D_z`, the corresponding derivatives become `D_z.xy`.
+    This gets the programmatic notation very close to mathematical.
+    """
+
+    def __init__(self, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"):
+        self.mask = mask
+        self.edge_bc = edge_bc
+        self.interior_bc = interior_bc
+        self.x = self.make_D_x
+        self.y = self.make_D_y
+        self.xy = self.make_D_xy
+        self.xx = self.make_D_xx
+        self.yy = self.make_D_yy
+
+    # TODO: Write out derivative expressions
+    def make_D_x(self,):
+        pass
+
+    def make_D_y(self,):
+        pass
+
+    def make_D_xy(self,):
+        pass
+
+    def make_D_xx(self,):
+        pass
+
+    def make_D_yy(self,):
+        pass
+
+
+class TimeDerivative(object):
+    def __init__(self, N, mu, kappa, p, D_u, D_rho):
+        self.N = N
+        self.mu = mu
+        self.kappa = kappa
+        self.p = p
+        self.D_u = D_u
+        self.D_rho = D_rho
+
+
+class TimeDerivativeU(TimeDerivative):
     """ 
-    D : (R^N, R^N, R^N)  -->  R^N
-              u, v, rho  |->  ∂u/∂t(u,v,rho) 
+    An instance `D_u` is essentially a function,
+    D_u : (R^N², R^N², R^N²)  ╶─>  R^N²
+                 (u, v, rho)  ├─>  ∂u/∂t
     """
 
     def __init__(self, *args):
@@ -198,31 +218,44 @@ class TimeDerivativeU(SpatialDerivative):
 
     def __call__(self, triple_vector):
         # TODO: Write the actual formula
-        return - triple_vector.u
+        return -triple_vector.u
 
 
-class TimeDerivativeV(SpatialDerivative):
+class TimeDerivativeV(TimeDerivative):
+    """ 
+    An instance `D_v` is essentially a function,
+    D_v : (R^N², R^N², R^N²)  ╶─>  R^N²
+                 (u, v, rho)  ├─>  ∂v/∂t
+    """
+
     def __init__(self, *args):
         super(TimeDerivativeV, self).__init__(*args)
 
     def __call__(self, triple_vector):
         # TODO: Write the actual formula
-        return - triple_vector.v
+        return -triple_vector.v
 
 
-class TimeDerivativeRho(SpatialDerivative):
+class TimeDerivativeRho(TimeDerivative):
+    """ 
+    An instance `D_rho` is essentially a function,
+    D_rho : (R^N², R^N², R^N²)  ╶─>  R^N²
+                   (u, v, rho)  ├─>  ∂rho/∂t
+    """
+
     def __init__(self, *args):
         super(TimeDerivativeRho, self).__init__(*args)
 
     def __call__(self, triple_vector):
         # TODO: Write the actual formula
-        return - triple_vector.rho
+        return -triple_vector.rho
 
 
 class TimeDerivativeTriple:
     """ 
-    D : (R^N, R^N, R^N)  -->  (R^N, R^N, R^N)
-            (u, v, rho)  |->  (∂u/∂t, ∂v/∂t, ∂rho/∂t)
+    An instance `D` is essentially a function,
+    D : (R^N², R^N², R^N²)  ╶─>  (R^N², R^N², R^N²)
+               (u, v, rho)  ├─>  (∂u/∂t, ∂v/∂t, ∂rho/∂t)
     """
 
     def __init__(self, dudt, dvdt, drdt):
@@ -265,13 +298,12 @@ if __name__ != "__main__":
     mu = 1.0
     zeta = 1.0
     kappa = zeta + (mu / 3)
-    p = 0  # TODO: Actually define it from function
+    p = mask.apply_mask(np.zeros(N * N))  # TODO: Actually define it from function
 
     u0 = mask.apply_mask(np.zeros(N * N))
     v0 = mask.apply_mask(np.zeros(N * N))
-    rho0 = mask.apply_mask(copy.deepcopy(p))  # TODO: see p
+    rho0 = copy.deepcopy(p)
 
     x0 = TripleVector(u0, v0, rho0)
 
     solution = solver_example(N, h, N_t, mu, kappa, x0, p, mask)
-
