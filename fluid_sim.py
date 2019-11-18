@@ -16,6 +16,10 @@ class IllegalMultiplicationException(Exception):
     pass
 
 
+class IllegalDivisionException(Exception):
+    pass
+
+
 class TripleVector:
     def __init__(self, u, v, rho):
         self.u = u
@@ -141,6 +145,8 @@ def test_require_that_triple_vector_class_works_as_expected():
     assert type(x1 + x2 / (-5)) == TripleVector
     with pytest.raises(IllegalMultiplicationException):
         assert x1 * x2
+    with pytest.raises(IllegalDivisionException):
+        assert x1 / x2
     assert type(RK4(1.0, x1, lambda x: -x)) == TripleVector
 
 
@@ -169,7 +175,8 @@ class SpatialDerivative:
     This gets the programmatic notation very close to mathematical.
     """
 
-    def __init__(self, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"):
+    def __init__(self, N, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"):
+        self.N = N
         self.mask = mask
         self.edge_bc = edge_bc
         self.interior_bc = interior_bc
@@ -198,6 +205,7 @@ class SpatialDerivative:
 
 class TimeDerivative(object):
     def __init__(self, N, mu, kappa, p, D_u, D_rho):
+        #  type: Tuple[Int, Float, Float, Ndarray, Sparse, Sparse] -> None
         self.N = N
         self.mu = mu
         self.kappa = kappa
@@ -208,9 +216,9 @@ class TimeDerivative(object):
 
 class TimeDerivativeU(TimeDerivative):
     """ 
-    An instance `D_u` is essentially a function,
-    D_u : (R^N², R^N², R^N²)  ╶─>  R^N²
-                 (u, v, rho)  ├─>  ∂u/∂t
+    An instance `dudt` is essentially a function,
+        (R^N², R^N², R^N²)  ╶─>  R^N²
+               (u, v, rho)  ├─>  ∂u/∂t
     """
 
     def __init__(self, *args):
@@ -223,9 +231,9 @@ class TimeDerivativeU(TimeDerivative):
 
 class TimeDerivativeV(TimeDerivative):
     """ 
-    An instance `D_v` is essentially a function,
-    D_v : (R^N², R^N², R^N²)  ╶─>  R^N²
-                 (u, v, rho)  ├─>  ∂v/∂t
+    An instance `dvdt` is essentially a function,
+        (R^N², R^N², R^N²)  ╶─>  R^N²
+               (u, v, rho)  ├─>  ∂v/∂t
     """
 
     def __init__(self, *args):
@@ -238,9 +246,9 @@ class TimeDerivativeV(TimeDerivative):
 
 class TimeDerivativeRho(TimeDerivative):
     """ 
-    An instance `D_rho` is essentially a function,
-    D_rho : (R^N², R^N², R^N²)  ╶─>  R^N²
-                   (u, v, rho)  ├─>  ∂rho/∂t
+    An instance `drdt` is essentially a function,
+        (R^N², R^N², R^N²)  ╶─>  R^N²
+               (u, v, rho)  ├─>  ∂rho/∂t
     """
 
     def __init__(self, *args):
@@ -253,8 +261,8 @@ class TimeDerivativeRho(TimeDerivative):
 
 class TimeDerivativeTriple:
     """ 
-    An instance `D` is essentially a function,
-    D : (R^N², R^N², R^N²)  ╶─>  (R^N², R^N², R^N²)
+    An instance `dxdt` is essentially a function,
+        (R^N², R^N², R^N²)  ╶─>  (R^N², R^N², R^N²)
                (u, v, rho)  ├─>  (∂u/∂t, ∂v/∂t, ∂rho/∂t)
     """
 
