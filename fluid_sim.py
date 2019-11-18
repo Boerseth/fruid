@@ -124,7 +124,7 @@ class Mask:
         return [
             (i, j, value)
             for i, j, value in elements
-            if i in self.mask and j in self.mask
+            if i in self._mask and j in self._mask
         ]
         # This is very computationally expensive.
         # How about instead sorting the elements, then going through the mask
@@ -280,17 +280,20 @@ class TimeDerivativeTriple:
 
 
 def solver_example(N, h, N_t, mu, kappa, x0, p, mask):
-    f = TimeDerivativeTriple(
-        TimeDerivativeU(
-            N, mu, kappa, p, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"
-        ),
-        TimeDerivativeV(
-            N, mu, kappa, p, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"
-        ),
-        TimeDerivativeRho(
-            N, mu, kappa, p, mask, edge_bc="NEUMANN", interior_bc="DIRICHLET"
-        ),
-    )
+    """
+    Builds the function `f` for the PDE
+        ∂x/∂t = f(x)
+    and numerically integrates with time step `h` by Runge-Kutta 4.
+    """
+    D_u = SpatialDerivative(N, mask, edge_bc="NEUMANN", interior_bc="DIRICHLET")
+    D_rho = SpatialDerivative(N, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN")
+
+    dudt = TimeDerivativeU(N, mu, kappa, p, mask, D_u, D_rho)
+    dvdt = TimeDerivativeV(N, mu, kappa, p, mask, D_u, D_rho)
+    drdt = TimeDerivativeRho(N, mu, kappa, p, mask, D_u, D_rho)
+
+    f = TimeDerivativeTriple(dudt, dvdt, drdt)
+
     states = [x0]
     for n_t in range(N_t):
         states.append(RK4(h, states[-1], f))
@@ -301,7 +304,7 @@ if __name__ != "__main__":
     N = 50
     N_t = 10
     h = 0.1
-    mask = Mask(list([i for i in range(N * N)]))
+    mask = Mask(N * N, list([i for i in range(N * N)]))
 
     mu = 1.0
     zeta = 1.0
