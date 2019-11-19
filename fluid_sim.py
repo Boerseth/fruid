@@ -1,6 +1,7 @@
 import copy
 
 import numpy as np
+import scipy.sparse as sp
 import pytest
 
 
@@ -134,7 +135,7 @@ class Mask:
         elements = self._filter_axis(elements, axis=1)
         return elements
 
-    def _filter_axis(self, elements, axis=0):
+    def _filter_axis(self, elements, axis):
         elements.sort(key=lambda el: el[axis])
         anti_mask = copy.deepcopy(self._anti_mask)
         i = 0
@@ -146,6 +147,51 @@ class Mask:
             elif elements[i][axis] < anti_mask[0]:
                 i += 1
         return elements
+
+
+class SpatialDerivative:
+    """
+    The choice in naming for the derivative matrices is such that, when naming
+    instances as e.g. `D_z`, the corresponding derivatives become `D_z.xy`.
+    This gets the programmatic notation very close to mathematical (or at least
+    my own).
+    """
+
+    def __init__(self, N, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"):
+        self.N = N
+        self.mask = mask
+        self.edge_bc = edge_bc
+        self.interior_bc = interior_bc
+        self.x = self.make_D_x
+        self.y = self.make_D_y
+        self.xy = self.make_D_xy
+        self.xx = self.make_D_xx
+        self.yy = self.make_D_yy
+
+    """
+    TODO: Write out derivative expressions
+    Note on which sparse matrices to use:
+        - `sp.coo_matrix((data, (i,j)), shape=(N^2, N^2))` when building
+        - `sp.csr_matrix()` when doing vector products, by `coo.tocsr()`
+    """
+    def make_D_x(self,):
+        pass
+
+    def make_D_y(self,):
+        pass
+
+    def make_D_xy(self,):
+        pass
+
+    def make_D_xx(self,):
+        pass
+
+    def make_D_yy(self,):
+        pass
+
+
+def test_require_that_first_derivatives_work():
+    pass
 
 
 def test_require_that_triple_vector_class_works_as_expected():
@@ -177,52 +223,31 @@ def test_require_that_anti_mask_works_as_expected():
         mask_object.apply_mask("not valid maskable")
     with pytest.raises(NotMaskableTensorDegreeException):
         mask_object.apply_mask(np.array([[[1.0]]]))
-    # TODO: Check for sparse matrix
+    
+def test_require_that_mask_works_on_sparse():
+    M = 5
+    mask = Mask(M, [0, 1, 3, 4])
+    data = [i for i in range(M**2)]
+    i = [i//M for i in range(M**2)]
+    j = [i%M for i in range(M**2)]
+    elements = mask.apply_mask(list(zip(i, j, data)))
+    new_i = [el[0] for el in elements]
+    new_j = [el[1] for el in elements]
+    new_data = [el[2] for el in elements]
+    coo = sp.coo_matrix((new_data, (new_i, new_j)), shape=(M,M))
+    array = coo.toarray()
+    assert all(a == 0 for a in array[2,:])
+    assert all(a == 0 for a in array[:,2])
 
 
 test_require_that_triple_vector_class_works_as_expected()
 test_require_that_anti_mask_works_as_expected()
-
-
-class SpatialDerivative:
-    """
-    The choice in naming for the derivative matrices is such that, when naming
-    instances as e.g. `D_z`, the corresponding derivatives become `D_z.xy`.
-    This gets the programmatic notation very close to mathematical (or at least
-    my own).
-    """
-
-    def __init__(self, N, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN"):
-        self.N = N
-        self.mask = mask
-        self.edge_bc = edge_bc
-        self.interior_bc = interior_bc
-        self.x = self.make_D_x
-        self.y = self.make_D_y
-        self.xy = self.make_D_xy
-        self.xx = self.make_D_xx
-        self.yy = self.make_D_yy
-
-    # TODO: Write out derivative expressions
-    def make_D_x(self,):
-        pass
-
-    def make_D_y(self,):
-        pass
-
-    def make_D_xy(self,):
-        pass
-
-    def make_D_xx(self,):
-        pass
-
-    def make_D_yy(self,):
-        pass
+test_require_that_mask_works_on_sparse()
 
 
 class TimeDerivative(object):
     def __init__(self, N, mu, kappa, p, D_u, D_rho):
-        #  type: Tuple[Int, Float, Float, Ndarray, Sparse, Sparse] -> None
+        #  type: (Int, Float, Float, Ndarray, SpatialDerivative, SpatialDerivative) -> None
         self.N = N
         self.mu = mu
         self.kappa = kappa
