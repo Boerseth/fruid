@@ -140,31 +140,19 @@ class Mask:
         anti_mask = copy.deepcopy(self._anti_mask)
         i = 0
         shift = 0
-        while i < len(elements) and len(anti_mask) > 0:
-            if elements[i][axis] == anti_mask[0]:
+        while i < len(elements):
+            if len(anti_mask) > 0 and elements[i][axis] == anti_mask[0]:
                 del elements[i]
-            elif elements[i][axis] > anti_mask[0]:
+            elif len(anti_mask) > 0 and elements[i][axis] > anti_mask[0]:
                 del anti_mask[0]
-                shift = shift + 1
-            elif elements[i][axis] < anti_mask[0]:
-                new_element = (
+                shift += 1
+            elif len(anti_mask) == 0 or elements[i][axis] < anti_mask[0]:
+                elements[i] = (
                     elements[i][0] - (shift if axis == 0 else 0),
                     elements[i][1] - (shift if axis == 1 else 0),
-                    elements[i][2]
+                    elements[i][2],
                 )
-                elements[i] = new_element
                 i += 1
-        #
-        # Shift pass through:
-        while i < len(elements):
-            new_element = (
-                elements[i][0] - (shift if axis == 0 else 0),
-                elements[i][1] - (shift if axis == 1 else 0),
-                elements[i][2]
-            )
-            elements[i] = new_element
-            i += 1
-
         return elements
 
 
@@ -193,6 +181,7 @@ class SpatialDerivative:
         - `sp.coo_matrix((data, (i,j)), shape=(N^2, N^2))` when building
         - `sp.csr_matrix()` when doing vector products, by `coo.tocsr()`
     """
+
     def make_D_x(self,):
         pass
 
@@ -242,23 +231,23 @@ def test_require_that_anti_mask_works_as_expected():
         mask_object.apply_mask("not valid maskable")
     with pytest.raises(NotMaskableTensorDegreeException):
         mask_object.apply_mask(np.array([[[1.0]]]))
-    
+
+
 def test_require_that_mask_works_on_sparse():
     M = 5
-    mask = Mask(M, [0, 1, 3, 4])
-    data = [i for i in range(M**2)]
-    i = [i//M for i in range(M**2)]
-    j = [i%M for i in range(M**2)]
+    mask = Mask(M, [1, 3, 4])
+    data = [i for i in range(M ** 2)]
+    i = [i // M for i in range(M ** 2)]
+    j = [i % M for i in range(M ** 2)]
     elements = mask.apply_mask(list(zip(i, j, data)))
     new_i = [el[0] for el in elements]
     new_j = [el[1] for el in elements]
     new_data = [el[2] for el in elements]
     new_M = len(mask._mask)
-    coo = sp.coo_matrix((new_data, (new_i, new_j)), shape=(new_M,new_M))
+    coo = sp.coo_matrix((new_data, (new_i, new_j)), shape=(new_M, new_M))
     array = coo.toarray()
-    #assert all(a == 0 for a in array[2,:])
-    #assert all(a == 0 for a in array[:,2])
-    print(array)
+    expected_array = np.array([[6, 8, 9], [16, 18, 19], [21, 23, 24]])
+    assert np.allclose(array, expected_array)
 
 
 test_require_that_triple_vector_class_works_as_expected()
@@ -349,8 +338,6 @@ def solver_example(N, h, N_t, mu, kappa, x0, p, mask):
     and numerically integrates with time step `h` by Runge-Kutta 4.
     """
     D_u = SpatialDerivative(N, mask, edge_bc="NEUMANN", interior_bc="DIRICHLET")
-    D_rho = SpatialDerivative(N, mask, edge_bc="DIRICHLET", interior_bc="NEUMANN")
-
     dudt = TimeDerivativeU(N, mu, kappa, p, mask, D_u, D_rho)
     dvdt = TimeDerivativeV(N, mu, kappa, p, mask, D_u, D_rho)
     drdt = TimeDerivativeRho(N, mu, kappa, p, mask, D_u, D_rho)
