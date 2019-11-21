@@ -48,6 +48,3 @@ class TripleVector:
         return "<TripleVector({}, {}, {})>".format(
             repr(self.u), repr(self.v), repr(self.rho)
         )
-
-
-

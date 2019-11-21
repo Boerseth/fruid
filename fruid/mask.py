@@ -1,6 +1,7 @@
 import numpy as np
 import copy
 
+
 def is_sorted(l, compare):
     for l_1, l_2 in zip(l[:-1], l[1:]):
         if not compare(l_1, l_2):
@@ -16,11 +17,14 @@ class NotMaskableTensorDegreeException(Exception):
     pass
 
 
-class ObjectNotMaskableException(Exception):
-    pass
-
-
 class Mask:
+    """
+    I want to rename things...
+        `Mask`          -> `Filter`
+        `_mask`         -> `_filter`
+        `apply_mask_{}` -> `apply_on_{}`
+    """
+
     def __init__(self, M, mask):
         if not is_sorted(mask, lambda l_1, l_2: l_1 < l_2):
             raise InvalidMaskInputException()
@@ -34,15 +38,7 @@ class Mask:
             del anti_mask[m]
         return anti_mask
 
-    def apply_mask(self, x):
-        if type(x) == np.ndarray:
-            self._apply_mask_on_numpy_array(x)
-        elif type(x) == list:
-            return self._apply_mask_on_sparse_matrix(x)
-        else:
-            raise ObjectNotMaskableException()
-
-    def _apply_mask_on_numpy_array(self, np_array):
+    def apply_on_dense(self, np_array):
         degree = len(np_array.shape)
         if degree == 1:
             return self._apply_mask_on_vector(np_array)
@@ -57,19 +53,12 @@ class Mask:
     def _apply_mask_on_matrix(self, A):
         return A[self._mask, :][:, self._mask]
 
-    def _apply_mask_on_sparse_matrix_inefficiently(self, elements):
-        return [
-            (i, j, value)
-            for i, j, value in elements
-            if i in self._mask and j in self._mask
-        ]
-        # This is very computationally expensive, O(N^4)
-        # Better, O(N^2 log(N)):
-
-    def _apply_mask_on_sparse_matrix(self, elements):
+    def apply_on_sparse(self, i, j, data):
+        elements = list(zip(i, j, data))
         elements = self._filter_axis(elements, axis=0)
         elements = self._filter_axis(elements, axis=1)
-        return elements
+        i, j, data = zip(*elements)
+        return i, j, data
 
     def _filter_axis(self, elements, axis):
         elements.sort(key=lambda el: el[axis])
@@ -91,4 +80,10 @@ class Mask:
                 i += 1
         return elements
 
-
+    # Keep the code! Inefficient
+    def _apply_mask_on_sparse_matrix_inefficiently(self, elements):
+        return [
+            (i, j, value)
+            for i, j, value in elements
+            if i in self._mask and j in self._mask
+        ]
